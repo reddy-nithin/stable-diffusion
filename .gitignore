@@ -1,5 +1,5 @@
-outputs/
-data/
+/data/
+/outputs/
 *.ckpt
 *.safetensors
 .ipynb_checkpoints/
