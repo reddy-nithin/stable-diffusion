@@ -35,9 +35,11 @@ All bugs encountered and fixed during Colab bring-up. Use this sequence every se
 
 ### Cell 1 — Install (DEFINITIVE — run once per session, before any imports)
 ```python
-# transformers: Colab ships 4.40.0 but peft needs >=4.41.0 (EncoderDecoderCache)
-# Do NOT add torchmetrics/open_clip — they downgrade numpy and break controlnet-aux
-!pip install -q "transformers>=4.41.0" diffusers==0.30.3 controlnet-aux pyyaml
+# No version pins on diffusers/transformers — let pip resolve compatible latest versions.
+# diffusers==0.30.3 + latest transformers breaks (FLAX_WEIGHTS_NAME removed).
+# Latest diffusers + latest transformers are designed to work together.
+# Do NOT add torchmetrics/open_clip — they downgrade numpy and break controlnet-aux.
+!pip install -q diffusers transformers controlnet-aux pyyaml
 ```
 
 ### Cell 2 — Environment setup (run after every restart)
