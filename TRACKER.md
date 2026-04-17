@@ -35,10 +35,11 @@ All bugs encountered and fixed during Colab bring-up. Use this sequence every se
 
 ### Cell 1 — Install (DEFINITIVE — run once per session, before any imports)
 ```python
-# --upgrade is critical: without it pip skips already-installed packages
-# even if they're an old pinned version from a previous session.
-# diffusers 0.32+ removed the FLAX_WEIGHTS_NAME import that broke with new transformers.
-!pip install -q --upgrade diffusers transformers controlnet-aux pyyaml
+# --upgrade on all packages:
+# - diffusers 0.32+ removed FLAX_WEIGHTS_NAME (0.30.3 broke with new transformers)
+# - gradio 4.29.0 uses HfFolder removed from huggingface_hub; upgrade fixes it
+# Do NOT add torchmetrics/open_clip — they downgrade numpy and break controlnet-aux.
+!pip install -q --upgrade diffusers transformers gradio controlnet-aux pyyaml
 ```
 
 ### Cell 2 — Environment setup (run after every restart)
