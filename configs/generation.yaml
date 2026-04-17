@@ -1,0 +1,36 @@
+# ── Models ────────────────────────────────────────────────────────────────────
+models:
+  base: "stable-diffusion-v1-5/stable-diffusion-v1-5"
+  controlnet_seg: "lllyasviel/control_v11p_sd15_seg"
+  controlnet_canny: "lllyasviel/control_v11p_sd15_canny"
+
+# ── Diffusion parameters ──────────────────────────────────────────────────────
+steps: 30
+cfg_scale: 7.5
+width: 512
+height: 512
+scheduler: "DPMSolverMultistepScheduler"
+
+# ── ControlNet parameters ─────────────────────────────────────────────────────
+controlnet:
+  primary: "seg"          # switch to "canny" if seg quality is weak
+  conditioning_scale: 0.8
+
+# ── Seed grid ─────────────────────────────────────────────────────────────────
+# Fixed seeds for reproducible ablation comparisons
+seeds: [42, 137, 2024, 9999]
+
+# ── Ablation cells ────────────────────────────────────────────────────────────
+# A: naive + no controlnet
+# B: naive + controlnet
+# C: structured + no controlnet
+# D: structured + controlnet  (expected best)
+cells:
+  A: {prompt: naive,      controlnet: false}
+  B: {prompt: naive,      controlnet: true}
+  C: {prompt: structured, controlnet: false}
+  D: {prompt: structured, controlnet: true}
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output_dir: "outputs"
+samples_dir: "samples"

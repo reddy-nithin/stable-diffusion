@@ -1,0 +1,15 @@
+# ── Naive template ────────────────────────────────────────────────────────────
+naive: "a {breed} {condition}"
+
+# ── Structured template ───────────────────────────────────────────────────────
+# Slots: {style}, {breed}, {species}, {condition_clause}, {environment_clause}
+structured: >-
+  {style}, a photograph of a {breed} ({species}) {condition_clause},
+  {environment_clause}, soft studio lighting, shallow depth of field,
+  high detail, 50mm lens
+
+# ── Negative prompt ───────────────────────────────────────────────────────────
+negative: >-
+  cartoon, anime, blurry, lowres, deformed anatomy, extra limbs,
+  watermark, text, logo, disturbing, graphic injury, blood, gore,
+  human faces, nsfw, bad proportions, disfigured

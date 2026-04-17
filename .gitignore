@@ -1,0 +1,15 @@
+outputs/
+data/
+*.ckpt
+*.safetensors
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+.DS_Store
+wandb/
+runs/

@@ -1,0 +1,95 @@
+# ── Species ───────────────────────────────────────────────────────────────────
+species:
+  - cat
+  - dog
+
+# ── Breeds (37 Oxford-IIIT classes) ──────────────────────────────────────────
+cat_breeds:
+  - Abyssinian
+  - Bengal
+  - Birman
+  - Bombay
+  - British_Shorthair
+  - Egyptian_Mau
+  - Maine_Coon
+  - Persian
+  - Ragdoll
+  - Russian_Blue
+  - Siamese
+  - Sphynx
+
+dog_breeds:
+  - american_bulldog
+  - american_pit_bull_terrier
+  - basset_hound
+  - beagle
+  - boxer
+  - chihuahua
+  - english_cocker_spaniel
+  - english_setter
+  - german_shorthaired
+  - great_pyrenees
+  - havanese
+  - japanese_chin
+  - keeshond
+  - leonberger
+  - miniature_pinscher
+  - newfoundland
+  - pomeranian
+  - pug
+  - saint_bernard
+  - samoyed
+  - scottish_terrier
+  - shiba_inu
+  - staffordshire_bull_terrier
+  - wheaten_terrier
+  - yorkshire_terrier
+
+# ── Veterinary conditions (educational only) ─────────────────────────────────
+conditions:
+  cone_collar:
+    clause: "wearing a protective cone collar after surgery"
+    notes: "post-operative recovery"
+  bandaged_paw:
+    clause: "with a bandaged front paw resting on a veterinary table"
+    notes: "minor injury care"
+  grooming:
+    clause: "being gently groomed by a veterinarian"
+    notes: "routine grooming"
+  dental_check:
+    clause: "having its teeth examined by a veterinarian"
+    notes: "dental health"
+  vaccination:
+    clause: "receiving a vaccination from a caring veterinarian"
+    notes: "preventive care"
+  weight_check:
+    clause: "standing on a veterinary scale for a weight check"
+    notes: "wellness exam"
+  post_bath_drying:
+    clause: "being towel-dried after a bath"
+    notes: "hygiene care"
+  health_exam:
+    clause: "undergoing a routine health examination"
+    notes: "general wellness"
+
+# ── Environments ──────────────────────────────────────────────────────────────
+environments:
+  clinic:
+    clause: "in a bright clean veterinary clinic"
+  exam_room:
+    clause: "on a stainless steel examination table in a veterinary exam room"
+  home:
+    clause: "in a cozy home living room"
+  outdoor:
+    clause: "in a sunny outdoor garden setting"
+  grooming_salon:
+    clause: "in a professional pet grooming salon"
+  mobile_clinic:
+    clause: "inside a mobile veterinary clinic"
+
+# ── Style modifiers ───────────────────────────────────────────────────────────
+style_modifiers:
+  - "veterinary illustration"
+  - "educational diagram"
+  - "professional pet photography"
+  - "soft watercolor illustration"
