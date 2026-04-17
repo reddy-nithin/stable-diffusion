@@ -24,15 +24,17 @@ All bugs encountered and fixed during Colab bring-up. Use this sequence every se
 | `xformers` 38-min install | No binary wheel for Python 3.12 | Changed to `>=0.0.25` |
 | `src.data` ModuleNotFoundError | `.gitignore data/` silently excluded `src/data/` | Fixed to `/data/`; committed missing files |
 | `cached_download` ImportError | `diffusers==0.27.2` incompatible with `huggingface-hub>=0.25` | Upgraded to `0.30.3` |
-| `clear_device_cache` ImportError | `accelerate==0.29.3` too old for Colab's `peft` | **Don't reinstall accelerate** — use Colab's version |
-| CUDA version mismatch | `--force-reinstall accelerate` caused torchvision to reinstall with wrong CUDA | **Never reinstall torch/torchvision/accelerate in Colab** |
+| `clear_device_cache` ImportError | Reinstalling accelerate downgraded it | Don't reinstall accelerate — use Colab's version |
+| CUDA version mismatch | `--force-reinstall` on accelerate pulled wrong torchvision CUDA build | Never reinstall torch/torchvision/accelerate |
+| `numpy.rec` / controlnet-aux broken | `torchmetrics[image]` pulls `torch_fidelity` which requires `numpy<2.0`, downgrading Colab's numpy 2.4.4 | **Don't install torchmetrics for the demo** — it's only needed in Notebook 04 |
 
 ### KEY RULE
 > Only install packages Colab does NOT ship. NEVER reinstall: torch, torchvision, accelerate, peft, transformers, numpy.
 
-### Cell 1 — Install (run once per session, before any imports)
+### Cell 1 — Install (run once per session, BEFORE any imports)
 ```python
-!pip install -q diffusers==0.30.3 controlnet-aux torchmetrics[image] open_clip_torch pyyaml gradio
+# Only 3 packages — do NOT add torchmetrics/open_clip/gradio (breaks numpy)
+!pip install -q diffusers==0.30.3 controlnet-aux pyyaml
 ```
 
 ### Cell 2 — Environment setup (run after every restart)
