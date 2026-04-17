@@ -35,11 +35,10 @@ All bugs encountered and fixed during Colab bring-up. Use this sequence every se
 
 ### Cell 1 — Install (DEFINITIVE — run once per session, before any imports)
 ```python
-# No version pins on diffusers/transformers — let pip resolve compatible latest versions.
-# diffusers==0.30.3 + latest transformers breaks (FLAX_WEIGHTS_NAME removed).
-# Latest diffusers + latest transformers are designed to work together.
-# Do NOT add torchmetrics/open_clip — they downgrade numpy and break controlnet-aux.
-!pip install -q diffusers transformers controlnet-aux pyyaml
+# --upgrade is critical: without it pip skips already-installed packages
+# even if they're an old pinned version from a previous session.
+# diffusers 0.32+ removed the FLAX_WEIGHTS_NAME import that broke with new transformers.
+!pip install -q --upgrade diffusers transformers controlnet-aux pyyaml
 ```
 
 ### Cell 2 — Environment setup (run after every restart)
