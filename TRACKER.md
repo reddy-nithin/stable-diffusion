@@ -28,13 +28,16 @@ All bugs encountered and fixed during Colab bring-up. Use this sequence every se
 | CUDA version mismatch | `--force-reinstall` on accelerate pulled wrong torchvision CUDA build | Never reinstall torch/torchvision/accelerate |
 | `numpy.rec` / controlnet-aux broken | `torchmetrics[image]` pulls `torch_fidelity` which requires `numpy<2.0`, downgrading Colab's numpy 2.4.4 | **Don't install torchmetrics for the demo** — it's only needed in Notebook 04 |
 
-### KEY RULE
-> Only install packages Colab does NOT ship. NEVER reinstall: torch, torchvision, accelerate, peft, transformers, numpy.
+| `EncoderDecoderCache` ImportError | Colab's peft (latest) requires transformers>=4.41.0 but Colab ships 4.40.0 — base image inconsistency | Upgrade transformers in Cell 1 |
 
-### Cell 1 — Install (run once per session, BEFORE any imports)
+### KEY RULE
+> Only install packages Colab does NOT ship correctly. NEVER reinstall: torch, torchvision, accelerate, numpy.
+
+### Cell 1 — Install (DEFINITIVE — run once per session, before any imports)
 ```python
-# Only 3 packages — do NOT add torchmetrics/open_clip/gradio (breaks numpy)
-!pip install -q diffusers==0.30.3 controlnet-aux pyyaml
+# transformers: Colab ships 4.40.0 but peft needs >=4.41.0 (EncoderDecoderCache)
+# Do NOT add torchmetrics/open_clip — they downgrade numpy and break controlnet-aux
+!pip install -q "transformers>=4.41.0" diffusers==0.30.3 controlnet-aux pyyaml
 ```
 
 ### Cell 2 — Environment setup (run after every restart)
