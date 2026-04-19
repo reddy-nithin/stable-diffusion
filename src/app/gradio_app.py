@@ -230,6 +230,16 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                 font-size: 0.88rem;
                 color: #b8d4b8;
             }
+            #breed-warning {
+                background: #2a1a08;
+                border: 1px solid #7a4e1a;
+                border-radius: 6px;
+                padding: 8px 12px;
+                color: #e8c07a;
+                font-size: 0.82rem;
+                margin-top: -2px;
+                margin-bottom: 4px;
+            }
             footer { display: none !important; }
         """,
     ) as demo:
@@ -268,6 +278,11 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                     value=dog_breeds[0] if dog_breeds else None,
                     label="Breed",
                 )
+                breed_upload_warning = gr.Markdown(
+                    "",
+                    visible=False,
+                    elem_id="breed-warning",
+                )
                 condition = gr.Dropdown(
                     choices=all_conditions,
                     value=all_conditions[0] if all_conditions else None,
@@ -300,15 +315,17 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                     info="Change this number for different looks.",
                 )
 
-                with gr.Accordion("📷 Upload your pet's photo (optional)", open=False):
+                with gr.Accordion("📷 Upload your pet's photo (optional — shape guide only)", open=False):
                     uploaded_image = gr.Image(
                         type="pil",
                         label="Your pet's photo",
                         sources=["upload", "webcam"],
                     )
                     gr.Markdown(
-                        "_When provided, your pet's own shape guides the illustration "
-                        "for a more personalized result. Works best with a clear side-profile shot._"
+                        "**Your photo guides pose and body shape only** — it does not identify the breed. "
+                        "The Species and Breed dropdowns above still determine what the illustration depicts. "
+                        "For best results, select the breed that matches your pet before generating. "
+                        "Works best with a clear, well-lit side-profile shot."
                     )
 
                 generate_btn = gr.Button(
@@ -359,7 +376,20 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
             breeds = cat_breeds if atype == "cat" else dog_breeds
             return gr.update(choices=breeds, value=breeds[0] if breeds else None)
 
+        def _on_upload_change(img):
+            if img is not None:
+                return gr.update(
+                    value=(
+                        "📸 **Photo uploaded** — your photo sets the pose and body shape. "
+                        "Confirm the **Species** and **Breed** dropdowns above match your pet, "
+                        "otherwise the illustration will depict the wrong animal."
+                    ),
+                    visible=True,
+                )
+            return gr.update(value="", visible=False)
+
         animal_type.change(_update_breeds, inputs=animal_type, outputs=breed)
+        uploaded_image.change(_on_upload_change, inputs=uploaded_image, outputs=breed_upload_warning)
 
         def _generate_wrapper(atype, br, cond, env, sty, use_cn, s, upload):
             try:
