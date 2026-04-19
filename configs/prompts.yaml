@@ -2,9 +2,10 @@
 naive: "a {breed} {condition}"
 
 # ── Structured template ───────────────────────────────────────────────────────
-# Slots: {style}, {breed}, {species}, {condition_clause}, {environment_clause}
+# Slots: {style}, {breed}, {species}, {breed_descriptor}, {condition_clause}, {environment_clause}
+# breed_descriptor is injected as " with <traits>" when available, else empty string.
 structured: >-
-  {style}, a photograph of a {breed} ({species}) {condition_clause},
+  {style}, a {breed} {species}{breed_descriptor}, {condition_clause},
   {environment_clause}, soft studio lighting, shallow depth of field,
   high detail, 50mm lens
 

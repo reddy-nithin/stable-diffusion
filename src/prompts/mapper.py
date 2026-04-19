@@ -1,21 +1,16 @@
-"""Map structured veterinary inputs → (positive_prompt, negative_prompt).
-
-Strategy
---------
-1. Slot-filling   — breed, species, condition_clause, environment_clause pulled
-                    from configs/taxonomy.yaml clause fields.
-2. Style anchoring — caller picks one of the four style_modifiers; defaults to
-                    "veterinary illustration" for maximum rubric clarity.
-3. Ethics guard   — condition key validated against the allow-list in taxonomy;
-                    any unknown condition raises ValueError before generation.
-4. Fallback       — if structured fails (missing clause), falls back to naive.
-"""
+"""Map structured veterinary inputs → (positive_prompt, negative_prompt)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
 
-from src.data.taxonomy import all_conditions, all_environments, all_styles, load_taxonomy
+from src.data.taxonomy import (
+    all_conditions,
+    all_environments,
+    all_styles,
+    breed_descriptors,
+    load_taxonomy,
+)
 from src.prompts.templates import render_naive, render_negative, render_structured
 
 
@@ -36,20 +31,12 @@ def structured_input_to_prompt(
     tax_path: str = "configs/taxonomy.yaml",
     prompt_path: str = "configs/prompts.yaml",
 ) -> PromptPair:
-    """Return a (positive, negative) PromptPair for the given inputs.
-
-    Parameters
-    ----------
-    breed       Oxford breed name, e.g. "Siamese" or "beagle"
-    species     "cat" or "dog"
-    condition   Key from taxonomy conditions, e.g. "cone_collar"
-    environment Key from taxonomy environments, e.g. "clinic"
-    style       One of taxonomy style_modifiers; defaults to first entry
-    """
+    """Return a (positive, negative) PromptPair for the given inputs."""
     tax = load_taxonomy(tax_path)
     conditions = all_conditions(tax)
     environments = all_environments(tax)
     styles = all_styles(tax)
+    descriptors = breed_descriptors(tax)
 
     if condition not in conditions:
         raise ValueError(
@@ -65,6 +52,7 @@ def structured_input_to_prompt(
     chosen_style = style if style in styles else styles[0]
     condition_clause = conditions[condition]["clause"]
     environment_clause = environments[environment]["clause"]
+    descriptor = descriptors.get(breed, "")
 
     positive = render_structured(
         style=chosen_style,
@@ -72,6 +60,7 @@ def structured_input_to_prompt(
         species=species,
         condition_clause=condition_clause,
         environment_clause=environment_clause,
+        breed_descriptor=descriptor,
         path=prompt_path,
     )
     negative = render_negative(path=prompt_path)
@@ -84,7 +73,6 @@ def naive_input_to_prompt(
     condition: str,
     prompt_path: str = "configs/prompts.yaml",
 ) -> PromptPair:
-    """Minimal naive prompt for ablation cell A/B."""
     positive = render_naive(
         breed=breed.replace("_", " "),
         condition=condition.replace("_", " "),

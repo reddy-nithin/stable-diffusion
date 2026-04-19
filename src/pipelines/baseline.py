@@ -1,4 +1,4 @@
-"""Baseline SD 1.5 text-to-image pipeline — ablation cells A and C (no ControlNet)."""
+"""SD 1.5 text-to-image pipeline — no ControlNet."""
 from __future__ import annotations
 
 from typing import Any
@@ -29,22 +29,9 @@ def run_baseline(
     cell: str,
     gen_config_path: str = "configs/generation.yaml",
 ) -> tuple[Image.Image, dict[str, Any]]:
-    """Generate one image with the baseline SD 1.5 pipeline (no ControlNet).
+    """Generate one image with SD 1.5 (no ControlNet).
 
-    Parameters
-    ----------
-    prompt_pair   PromptPair from mapper (positive + negative + mode)
-    seed          Reproducibility seed
-    breed         Oxford breed name (for metadata)
-    species       "cat" or "dog" (for metadata)
-    condition     Taxonomy condition key (for metadata)
-    environment   Taxonomy environment key (for metadata)
-    cell          Ablation cell label: "A" or "C"
-    gen_config_path  Path to generation.yaml
-
-    Returns
-    -------
-    (PIL image, metadata dict)  — caller passes to save_image_with_sidecar
+    Returns (PIL image, metadata dict).
     """
     params = get_generation_params(gen_config_path)
     cfg = _load_gen_config(gen_config_path)

@@ -55,7 +55,6 @@ _ADE20K_PALETTE: list[list[int]] = [
     [102, 255, 0], [92, 0, 255],
 ]
 
-# ADE20K class 126 = "animal"
 _ANIMAL_COLOR = np.array(_ADE20K_PALETTE[126], dtype=np.uint8)  # [255, 0, 122]
 _BG_COLOR = np.array([0, 0, 0], dtype=np.uint8)
 
@@ -63,8 +62,8 @@ _BG_COLOR = np.array([0, 0, 0], dtype=np.uint8)
 def trimap_to_seg_map(trimap: Image.Image) -> Image.Image:
     """Map Oxford trimap to ADE20K-style RGB seg map for ControlNet-seg.
 
-    Foreground (1) → ADE20K animal class [255, 0, 122].
-    Background (2) and uncertain (3) → [0, 0, 0].
+    Foreground (1) and uncertain (3) → ADE20K animal class [255, 0, 122].
+    Background (2) → [0, 0, 0].
     """
     mask = np.array(trimap.convert("L"))
     seg = np.full((*mask.shape, 3), _BG_COLOR, dtype=np.uint8)
@@ -75,7 +74,7 @@ def trimap_to_seg_map(trimap: Image.Image) -> Image.Image:
 
 
 def image_to_canny(image: Image.Image, low: int = 100, high: int = 200) -> Image.Image:
-    """Canny edge map via controlnet_aux — fallback control modality."""
+    """Extract Canny edges for ControlNet conditioning."""
     try:
         from controlnet_aux import CannyDetector
     except ImportError as e:

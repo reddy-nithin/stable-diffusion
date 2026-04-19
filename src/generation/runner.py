@@ -1,11 +1,11 @@
-"""Full 2×2 ablation runner.
+"""Batch generation runner across all four prompt × conditioning combinations.
 
-Cells
------
-A  naive  prompt  +  no ControlNet   → outputs/A/
-B  naive  prompt  +  ControlNet      → outputs/B/
+Conditions
+----------
+A  naive prompt   +  no ControlNet   → outputs/A/
+B  naive prompt   +  ControlNet      → outputs/B/
 C  structured prompt + no ControlNet → outputs/C/
-D  structured prompt + ControlNet    → outputs/D/  ← expected best
+D  structured prompt + ControlNet    → outputs/D/
 
 Usage
 -----

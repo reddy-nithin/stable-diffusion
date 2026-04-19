@@ -34,5 +34,10 @@ def all_styles(taxonomy: dict | None = None) -> list[str]:
     return t.get("style_modifiers", [])
 
 
+def breed_descriptors(taxonomy: dict | None = None) -> dict[str, str]:
+    t = taxonomy or load_taxonomy()
+    return t.get("breed_descriptors", {})
+
+
 def species_for_breed(breed: str) -> str:
     return "cat" if breed[0].isupper() else "dog"

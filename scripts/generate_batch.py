@@ -1,4 +1,4 @@
-"""CLI wrapper around src.generation.runner.run_ablation.
+"""CLI wrapper around src.generation.runner for batch image generation.
 
 Usage
 -----
