@@ -22,13 +22,30 @@ def _device_and_dtype() -> tuple[str, torch.dtype]:
     return "cpu", torch.float32
 
 
+def _configure_scheduler(pipe, cfg: dict[str, Any]):
+    """Swap the pipeline scheduler based on generation.yaml 'scheduler' key."""
+    name = cfg.get("scheduler", "UniPCMultistepScheduler")
+    if name == "UniPCMultistepScheduler":
+        from diffusers import UniPCMultistepScheduler
+        pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+    else:
+        from diffusers import DPMSolverMultistepScheduler
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+    return pipe
+
+
+def _enable_cuda_optimizations(pipe) -> None:
+    pipe.enable_attention_slicing()
+    try:
+        pipe.enable_xformers_memory_efficient_attention()
+    except Exception:
+        pass  # xformers not installed — attention slicing still active
+
+
 @lru_cache(maxsize=1)
 def load_baseline_pipeline(gen_config_path: str = "configs/generation.yaml"):
-    """Return a StableDiffusionPipeline on the best available device.
-
-    Cached so subsequent calls reuse the loaded weights.
-    """
-    from diffusers import DPMSolverMultistepScheduler, StableDiffusionPipeline
+    """Return a StableDiffusionPipeline on the best available device."""
+    from diffusers import StableDiffusionPipeline
 
     cfg = _load_gen_config(gen_config_path)
     model_id = cfg["models"]["base"]
@@ -40,31 +57,23 @@ def load_baseline_pipeline(gen_config_path: str = "configs/generation.yaml"):
         safety_checker=None,
         requires_safety_checker=False,
     )
-    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+    pipe = _configure_scheduler(pipe, cfg)
     pipe = pipe.to(device)
 
     if device == "cuda":
-        pipe.enable_attention_slicing()
-        try:
-            pipe.enable_xformers_memory_efficient_attention()
-        except Exception:
-            pass  # xformers not installed — attention slicing still active
+        _enable_cuda_optimizations(pipe)
 
     return pipe
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def load_controlnet_pipeline(
-    controlnet_type: str = "seg",
+    controlnet_type: str = "canny",
     gen_config_path: str = "configs/generation.yaml",
 ):
-    """Return a StableDiffusionControlNetPipeline for seg or canny conditioning.
-
-    Cached per controlnet_type.
-    """
+    """Return a StableDiffusionControlNetPipeline for canny, seg, or depth."""
     from diffusers import (
         ControlNetModel,
-        DPMSolverMultistepScheduler,
         StableDiffusionControlNetPipeline,
     )
 
@@ -82,14 +91,44 @@ def load_controlnet_pipeline(
         safety_checker=None,
         requires_safety_checker=False,
     )
-    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+    pipe = _configure_scheduler(pipe, cfg)
     pipe = pipe.to(device)
 
     if device == "cuda":
-        pipe.enable_attention_slicing()
-        try:
-            pipe.enable_xformers_memory_efficient_attention()
-        except Exception:
-            pass  # xformers not installed — attention slicing still active
+        _enable_cuda_optimizations(pipe)
+
+    return pipe
+
+
+@lru_cache(maxsize=2)
+def load_img2img_pipeline(
+    controlnet_type: str = "canny",
+    gen_config_path: str = "configs/generation.yaml",
+):
+    """Return a StableDiffusionControlNetImg2ImgPipeline for photo-based generation."""
+    from diffusers import (
+        ControlNetModel,
+        StableDiffusionControlNetImg2ImgPipeline,
+    )
+
+    cfg = _load_gen_config(gen_config_path)
+    model_id = cfg["models"]["base"]
+    cn_key = f"controlnet_{controlnet_type}"
+    controlnet_id = cfg["models"][cn_key]
+    device, dtype = _device_and_dtype()
+
+    controlnet = ControlNetModel.from_pretrained(controlnet_id, torch_dtype=dtype)
+    pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+        model_id,
+        controlnet=controlnet,
+        torch_dtype=dtype,
+        safety_checker=None,
+        requires_safety_checker=False,
+    )
+    pipe = _configure_scheduler(pipe, cfg)
+    pipe = pipe.to(device)
+
+    if device == "cuda":
+        _enable_cuda_optimizations(pipe)
 
     return pipe

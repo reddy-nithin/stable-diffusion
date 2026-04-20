@@ -3,28 +3,39 @@ models:
   base: "stable-diffusion-v1-5/stable-diffusion-v1-5"
   controlnet_seg: "lllyasviel/control_v11p_sd15_seg"
   controlnet_canny: "lllyasviel/control_v11p_sd15_canny"
+  controlnet_depth: "lllyasviel/control_v11f1p_sd15_depth"
 
 # ── Diffusion parameters ──────────────────────────────────────────────────────
-steps: 30
-cfg_scale: 7.5
+steps: 20
+cfg_scale: 8.0
 width: 512
 height: 512
-scheduler: "DPMSolverMultistepScheduler"
+scheduler: "UniPCMultistepScheduler"  # converges in 20 steps; was DPM@30
 
 # ── ControlNet parameters ─────────────────────────────────────────────────────
 controlnet:
-  primary: "seg"          # switch to "canny" if seg quality is weak
-  conditioning_scale: 0.8
+  primary: "canny"
+  conditioning_scale: 0.55         # was 0.8; lower lets prompt drive breed details
+  control_guidance_start: 0.0      # Canny locks pose in early steps...
+  control_guidance_end: 0.6        # ...then releases so prompt drives details
+
+# ── Canny preprocessing ───────────────────────────────────────────────────────
+# All values tunable here without touching code.
+canny:
+  low: 80
+  high: 160
+  border_erase_px: 16    # zeroes this many pixels on all four edges post-Canny
+  preblur_radius: 1.5    # Gaussian radius applied before Canny (suppresses texture noise)
+  center_crop_pct: 0.90  # crops to 90 % before Canny to discard JPEG/photo borders
+
+# ── img2img ───────────────────────────────────────────────────────────────────
+img2img:
+  strength: 0.6  # 0 = no change from init, 1 = ignore init entirely
 
 # ── Seed grid ─────────────────────────────────────────────────────────────────
-# Fixed seeds for reproducible ablation comparisons
 seeds: [42, 137, 2024, 9999]
 
 # ── Ablation cells ────────────────────────────────────────────────────────────
-# A: naive + no controlnet
-# B: naive + controlnet
-# C: structured + no controlnet
-# D: structured + controlnet  (expected best)
 cells:
   A: {prompt: naive,      controlnet: false}
   B: {prompt: naive,      controlnet: true}

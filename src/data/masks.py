@@ -1,4 +1,4 @@
-"""Trimap → ADE20K seg map  +  Canny edge helper.
+"""Trimap → ADE20K seg map  +  border-safe Canny edge helper  +  depth map.
 
 Oxford trimap values:
   1 = pet foreground
@@ -73,12 +73,79 @@ def trimap_to_seg_map(trimap: Image.Image) -> Image.Image:
     return Image.fromarray(seg, mode="RGB")
 
 
-def image_to_canny(image: Image.Image, low: int = 100, high: int = 200) -> Image.Image:
-    """Extract Canny edges for ControlNet conditioning."""
+def image_to_canny(
+    image: Image.Image,
+    low: int | None = None,
+    high: int | None = None,
+    cfg_path: str = "configs/generation.yaml",
+) -> Image.Image:
+    """Extract border-safe Canny edges for ControlNet conditioning.
+
+    Applies center-crop, Gaussian pre-blur, and border-ring erasure before
+    running Canny to prevent JPEG/photo-boundary rectangles from appearing
+    as bounding boxes in generated images. All thresholds are YAML-configurable.
+    """
+    import yaml
+    from PIL import ImageFilter
+
     try:
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f)
+        canny_cfg = cfg.get("canny", {})
+    except Exception:
+        canny_cfg = {}
+
+    _low = low if low is not None else canny_cfg.get("low", 80)
+    _high = high if high is not None else canny_cfg.get("high", 160)
+    border_px = int(canny_cfg.get("border_erase_px", 16))
+    blur_r = float(canny_cfg.get("preblur_radius", 1.5))
+    crop_pct = float(canny_cfg.get("center_crop_pct", 0.90))
+
+    img = image.convert("RGB").resize((512, 512), Image.LANCZOS)
+
+    # Center-crop to strip JPEG borders before edge detection
+    if crop_pct < 1.0:
+        w, h = img.size
+        cw, ch = int(w * crop_pct), int(h * crop_pct)
+        left, top = (w - cw) // 2, (h - ch) // 2
+        img = img.crop((left, top, left + cw, top + ch)).resize((w, h), Image.LANCZOS)
+
+    # Pre-blur suppresses texture/noise edges that Canny would otherwise pick up
+    if blur_r > 0:
+        img = img.filter(ImageFilter.GaussianBlur(radius=blur_r))
+
+    try:
+        import cv2
+        arr = np.array(img.convert("L"))
+        edges = cv2.Canny(arr, _low, _high)
+    except ImportError:
+        # Fallback when cv2 is not available (local dev without opencv-python)
         from controlnet_aux import CannyDetector
+        detector = CannyDetector()
+        result = detector(img, low_threshold=_low, high_threshold=_high)
+        edges = np.array(result.convert("L"))
+
+    # Zero out border ring — eliminates any residual outer-rectangle artifact
+    if border_px > 0:
+        edges[:border_px, :] = 0
+        edges[-border_px:, :] = 0
+        edges[:, :border_px] = 0
+        edges[:, -border_px:] = 0
+
+    edges_rgb = np.stack([edges, edges, edges], axis=-1)
+    return Image.fromarray(edges_rgb)
+
+
+def image_to_depth(image: Image.Image) -> Image.Image:
+    """Extract MiDaS depth map for ControlNet-depth conditioning.
+
+    No border-rectangle artifact since depth maps are smooth continuous fields.
+    """
+    try:
+        from controlnet_aux import MidasDetector
     except ImportError as e:
         raise ImportError("pip install controlnet-aux") from e
 
-    detector = CannyDetector()
-    return detector(image, low_threshold=low, high_threshold=high)
+    detector = MidasDetector.from_pretrained("lllyasviel/Annotators")
+    img_512 = image.convert("RGB").resize((512, 512), Image.LANCZOS)
+    return detector(img_512)

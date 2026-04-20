@@ -28,6 +28,7 @@ PKGS = [
     "gradio-client",
     "controlnet-aux",
     "pyyaml",
+    "compel",          # long-prompt (>77 token) support for SD 1.5
 ]
 
 print("Installing/upgrading packages…")

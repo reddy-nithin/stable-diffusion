@@ -11,6 +11,7 @@ torchmetrics[image]      # for LPIPS evaluation
 open_clip_torch          # CLIPScore evaluation
 pyyaml                   # config loading
 gradio                   # demo UI
+compel                   # long-prompt (>77 token) support for SD 1.5; optional fallback if absent
 
 # ── DO NOT ADD BELOW (Colab provides these — reinstalling breaks CUDA) ────────
 # torch

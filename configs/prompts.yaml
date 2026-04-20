@@ -2,15 +2,16 @@
 naive: "a {breed} {condition}"
 
 # ── Structured template ───────────────────────────────────────────────────────
-# Slots: {style}, {breed}, {species}, {breed_descriptor}, {condition_clause}, {environment_clause}
-# breed_descriptor is injected as " with <traits>" when available, else empty string.
+# Condition and environment appear FIRST so CLIP's 77-token limit never cuts them.
+# SD 1.5 parenthesis syntax (phrase:scale) boosts attention on that phrase.
 structured: >-
-  {style}, a {breed} {species}{breed_descriptor}, {condition_clause},
-  {environment_clause}, soft studio lighting, shallow depth of field,
-  high detail, 50mm lens
+  ({condition_clause}:1.35), ({environment_clause}:1.2),
+  {style}, a {breed} {species}{breed_descriptor}, high detail
 
 # ── Negative prompt ───────────────────────────────────────────────────────────
 negative: >-
   cartoon, anime, blurry, lowres, deformed anatomy, extra limbs,
   watermark, text, logo, disturbing, graphic injury, blood, gore,
-  human faces, nsfw, bad proportions, disfigured
+  human faces, nsfw, bad proportions, disfigured,
+  frame, border, picture frame, bounding box, rectangle around subject,
+  cropped, two animals, wrong breed, mutated, extra tail

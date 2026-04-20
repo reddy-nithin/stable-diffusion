@@ -1,6 +1,6 @@
 # Project Tracker
 
-Last session note: Phase 6 complete + Colab environment fully debugged. See COLAB_SETUP below for the definitive working cell sequence. Next: Phase 7 — Deliverables (README, ETHICS, slides).
+Last session note: Phase 6 done + quality upgrade pass complete (April 2026). Bounding-box artifact fixed, parameter fidelity improved, ControlNet tuned, img2img + depth modes added, CLIP rejection sampler added. See COLAB_SETUP for definitive cell sequence.
 Active phase: 7
 
 - [x] Phase 0 — Scaffold
@@ -56,7 +56,8 @@ from src.app.gradio_app import generate
 imgs, pos, neg, ctrl, status = generate(
     animal_type='dog', breed='beagle', condition='cone_collar',
     environment='clinic', style='veterinary illustration',
-    use_controlnet=True, seed=42, uploaded_image=None, n_variants=1,
+    use_controlnet=True, seed=42, uploaded_image=None,
+    guidance_label='edges (canny)', use_img2img=False, n_variants=1,
 )
 print(status)
 imgs[0]

@@ -18,6 +18,27 @@ def _load_gen_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def _get_prompt_inputs(pipe, prompt_pair: PromptPair) -> dict[str, Any]:
+    """Return prompt kwargs, using compel for long prompts if available."""
+    try:
+        from compel import Compel
+        compel_obj = Compel(
+            tokenizer=pipe.tokenizer,
+            text_encoder=pipe.text_encoder,
+        )
+        pos_embeds = compel_obj(prompt_pair.positive)
+        neg_embeds = compel_obj(prompt_pair.negative)
+        return {
+            "prompt_embeds": pos_embeds,
+            "negative_prompt_embeds": neg_embeds,
+        }
+    except Exception:
+        return {
+            "prompt": prompt_pair.positive,
+            "negative_prompt": prompt_pair.negative,
+        }
+
+
 def run_baseline(
     prompt_pair: PromptPair,
     *,
@@ -39,10 +60,10 @@ def run_baseline(
     pipe = load_baseline_pipeline(gen_config_path)
 
     generator = torch.Generator(device=pipe.device.type).manual_seed(seed)
+    prompt_kwargs = _get_prompt_inputs(pipe, prompt_pair)
 
     result = pipe(
-        prompt=prompt_pair.positive,
-        negative_prompt=prompt_pair.negative,
+        **prompt_kwargs,
         num_inference_steps=params["steps"],
         guidance_scale=params["cfg_scale"],
         width=params["width"],

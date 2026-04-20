@@ -10,6 +10,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -18,7 +19,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-import numpy as np
 from PIL import Image
 
 
@@ -72,46 +72,62 @@ def _style_list(tax: dict) -> list[str]:
     return tax.get("style_modifiers", ["veterinary illustration"])
 
 
-def _make_fallback_control(size: int = 512) -> Image.Image:
-    arr = np.zeros((size, size, 3), dtype=np.uint8)
-    m = size // 4
-    arr[m: size - m, m: size - m] = 255
-    return Image.fromarray(arr)
+# Guidance mode display labels → internal keys
+_GUIDANCE_MODES: list[tuple[str, str]] = [
+    ("edges (canny)", "canny"),
+    ("silhouette (seg)", "seg"),
+    ("depth map", "depth"),
+]
+_GUIDANCE_LABELS = [label for label, _ in _GUIDANCE_MODES]
+_LABEL_TO_KEY = {label: key for label, key in _GUIDANCE_MODES}
 
 
 def _get_control_image(
     breed_raw: str,
-    uploaded_image: Image.Image | None,
     use_controlnet: bool,
-) -> tuple[Image.Image | None, str]:
-    """Return (control_image, source_label).
+    guidance_mode: str = "canny",
+) -> tuple[Image.Image | None, str, str]:
+    """Return (control_image, source_label, controlnet_type).
 
-    Priority: uploaded photo (canny) → Oxford breed photo (canny) → fallback.
-    Using canny edges from real photos captures breed-specific shape detail
-    (ear shape, snout, proportions) far better than generic seg maps.
+    Uploaded photos are no longer used here — they belong to the img2img path.
+    Always derives conditioning from the Oxford breed reference so the output
+    reflects the selected breed, not the owner's pet silhouette.
     """
     if not use_controlnet:
-        return None, "none"
-
-    if uploaded_image is not None:
-        from src.data.masks import image_to_canny
-        ctrl = image_to_canny(uploaded_image.resize((512, 512)))
-        return ctrl, "your photo"
+        return None, "none", "canny"
 
     ds = _get_dataset()
-    if ds is not None:
-        breed_key = breed_raw.replace(" ", "_")
-        idx_map = _breed_index()
-        if idx_map:
-            lookup_key = breed_key if breed_key in idx_map else next(iter(idx_map))
-            src_img, _, _, _ = ds[idx_map[lookup_key]]
-            from src.data.masks import image_to_canny
-            ctrl = image_to_canny(src_img.resize((512, 512)))
-            return ctrl, "breed reference"
+    if ds is None:
+        return None, "no dataset (run download_data.py)", "canny"
+
+    idx_map = _breed_index()
+    if not idx_map:
+        return None, "no breed index", "canny"
+
+    breed_key = breed_raw.replace(" ", "_")
+    lookup_key = breed_key if breed_key in idx_map else next(iter(idx_map))
+    src_img, trimap, _, _ = ds[idx_map[lookup_key]]
+    src_img = src_img.resize((512, 512), Image.LANCZOS)
+
+    if guidance_mode == "seg":
+        from src.data.masks import trimap_to_seg_map
+        ctrl = trimap_to_seg_map(trimap)
+        return ctrl, "breed trimap → seg map", "seg"
+
+    if guidance_mode == "depth":
+        try:
+            from src.data.masks import image_to_depth
+            ctrl = image_to_depth(src_img)
+            return ctrl, "breed reference → depth map", "depth"
+        except Exception:
+            pass  # MiDaS unavailable — fall through to canny
 
     from src.data.masks import image_to_canny
-    ctrl = image_to_canny(_make_fallback_control())
-    return ctrl, "synthetic"
+    ctrl = image_to_canny(src_img)
+    label = "breed reference → canny edges"
+    if guidance_mode == "depth":
+        label += " (depth unavailable, fell back)"
+    return ctrl, label, "canny"
 
 
 def generate(
@@ -123,13 +139,17 @@ def generate(
     use_controlnet: bool,
     seed: int,
     uploaded_image,
+    guidance_label: str = "edges (canny)",
+    use_img2img: bool = False,
     n_variants: int = 4,
 ) -> tuple[list[Image.Image], str, str, Image.Image | None, str]:
     """Generate illustrations and return (images, positive, negative, control_img, status)."""
+    from src.generation.rejection import top_k_by_clip
     from src.pipelines.baseline import run_baseline
-    from src.pipelines.controlnet import run_controlnet
+    from src.pipelines.controlnet import run_controlnet, run_controlnet_img2img
     from src.prompts.mapper import structured_input_to_prompt
 
+    guidance_mode = _LABEL_TO_KEY.get(guidance_label, "canny")
     species = "cat" if animal_type == "cat" else "dog"
     breed_key = breed.replace(" ", "_")
 
@@ -141,16 +161,31 @@ def generate(
         style=style if style else None,
     )
 
-    ctrl_img, ctrl_source = _get_control_image(breed, uploaded_image, use_controlnet)
+    ctrl_img, ctrl_source, cn_type = _get_control_image(breed, use_controlnet, guidance_mode)
 
-    images: list[Image.Image] = []
-    seeds = [seed + i for i in range(n_variants)]
+    # Generate n_variants + 2 candidates, then keep top n_variants via CLIPScore
+    n_candidates = n_variants + 2
+    seeds = [seed + i for i in range(n_candidates)]
+    raw_images: list[Image.Image] = []
 
     for s in seeds:
-        if use_controlnet and ctrl_img is not None:
+        if use_img2img and uploaded_image is not None and ctrl_img is not None:
+            img, _, _ = run_controlnet_img2img(
+                prompt_pair,
+                init_image=uploaded_image.resize((512, 512)),
+                control_image=ctrl_img,
+                seed=s,
+                breed=breed_key,
+                species=species,
+                condition=condition,
+                environment=environment,
+                cell="D",
+                controlnet_type=cn_type,
+            )
+        elif use_controlnet and ctrl_img is not None:
             img, _, _ = run_controlnet(
                 prompt_pair,
-                source_image=uploaded_image.resize((512, 512)) if uploaded_image else Image.new("RGB", (512, 512)),
+                source_image=Image.new("RGB", (512, 512)),
                 seed=s,
                 breed=breed_key,
                 species=species,
@@ -158,7 +193,7 @@ def generate(
                 environment=environment,
                 cell="D",
                 trimap=None,
-                controlnet_type="canny",
+                controlnet_type=cn_type,
                 control_image=ctrl_img,
             )
         else:
@@ -171,16 +206,22 @@ def generate(
                 environment=environment,
                 cell="C",
             )
-        images.append(img)
+        raw_images.append(img)
 
-    if use_controlnet:
-        ref_label = "your photo" if uploaded_image else "breed reference"
-        cn_info = f"shape conditioning active ({ref_label})"
+    images = top_k_by_clip(raw_images, prompt_pair.positive, keep=n_variants)
+
+    if use_img2img and uploaded_image is not None and ctrl_img is not None:
+        cn_info = f"img2img + {ctrl_source}"
+    elif use_controlnet and ctrl_img is not None:
+        cn_info = ctrl_source
     else:
         cn_info = "no shape conditioning"
 
     condition_display = condition.replace("_", " ")
-    status = f"✓ {n_variants} illustrations generated | {breed}, {condition_display} | {cn_info}"
+    status = (
+        f"✓ {n_variants} of {n_candidates} illustrations (best by CLIP) | "
+        f"{breed}, {condition_display} | {cn_info}"
+    )
 
     return images, prompt_pair.positive, prompt_pair.negative, ctrl_img, status
 
@@ -302,30 +343,49 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                 with gr.Row():
                     use_controlnet = gr.Checkbox(
                         value=True,
-                        label="Use breed reference photo",
-                        info="Improves accuracy by using a real Oxford reference image for this breed.",
+                        label="Use breed shape reference",
+                        info="Guides pose and proportions from Oxford breed photos.",
                     )
 
-                seed = gr.Slider(
-                    minimum=0,
-                    maximum=9999,
-                    step=1,
-                    value=42,
-                    label="Variation seed",
-                    info="Change this number for different looks.",
+                guidance_mode_radio = gr.Radio(
+                    choices=_GUIDANCE_LABELS,
+                    value=_GUIDANCE_LABELS[0],
+                    label="Shape guidance type",
+                    info="How to extract the breed shape signal.",
+                    visible=True,
                 )
 
-                with gr.Accordion("📷 Upload your pet's photo (optional — shape guide only)", open=False):
+                with gr.Row():
+                    seed = gr.Slider(
+                        minimum=0,
+                        maximum=9999,
+                        step=1,
+                        value=42,
+                        label="Variation seed",
+                        info="Change for different looks.",
+                    )
+                    shuffle_btn = gr.Button("🎲", scale=0, min_width=48)
+
+                with gr.Accordion("📷 Upload your pet's photo (optional)", open=False):
                     uploaded_image = gr.Image(
                         type="pil",
                         label="Your pet's photo",
                         sources=["upload", "webcam"],
                     )
+                    use_img2img = gr.Checkbox(
+                        value=False,
+                        label="Restyle my photo (img2img mode)",
+                        info=(
+                            "When checked, your photo becomes the starting point "
+                            "and gets restyled into the veterinary scenario. "
+                            "Breed conditioning still comes from the dropdown."
+                        ),
+                    )
                     gr.Markdown(
-                        "**Your photo guides pose and body shape only** — it does not identify the breed. "
-                        "The Species and Breed dropdowns above still determine what the illustration depicts. "
-                        "For best results, select the breed that matches your pet before generating. "
-                        "Works best with a clear, well-lit side-profile shot."
+                        "**Without 'Restyle my photo':** your photo is ignored — "
+                        "breed shape comes from the Oxford reference library.\n\n"
+                        "**With 'Restyle my photo':** your pet's pose and structure "
+                        "are preserved while the scene and style are changed."
                     )
 
                 generate_btn = gr.Button(
@@ -364,9 +424,9 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                         lines=2,
                     )
 
-                with gr.Accordion("🔍 Reference image used", open=False):
+                with gr.Accordion("🔍 Shape reference used", open=False):
                     ctrl_img_out = gr.Image(
-                        label="Shape reference (edge map)",
+                        label="Shape conditioning image",
                         height=256,
                         elem_id="ctrl-img",
                         interactive=False,
@@ -380,18 +440,25 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
             if img is not None:
                 return gr.update(
                     value=(
-                        "📸 **Photo uploaded** — your photo sets the pose and body shape. "
-                        "Confirm the **Species** and **Breed** dropdowns above match your pet, "
-                        "otherwise the illustration will depict the wrong animal."
+                        "📸 **Photo uploaded** — enable 'Restyle my photo' below to use it as "
+                        "the generation starting point. Without that checkbox, the photo is ignored."
                     ),
                     visible=True,
                 )
             return gr.update(value="", visible=False)
 
+        def _on_use_controlnet_change(val: bool):
+            return gr.update(visible=val)
+
+        def _shuffle_seed():
+            return gr.update(value=random.randint(0, 9999))
+
         animal_type.change(_update_breeds, inputs=animal_type, outputs=breed)
         uploaded_image.change(_on_upload_change, inputs=uploaded_image, outputs=breed_upload_warning)
+        use_controlnet.change(_on_use_controlnet_change, inputs=use_controlnet, outputs=guidance_mode_radio)
+        shuffle_btn.click(_shuffle_seed, outputs=seed)
 
-        def _generate_wrapper(atype, br, cond, env, sty, use_cn, s, upload):
+        def _generate_wrapper(atype, br, cond, env, sty, use_cn, s, upload, g_label, img2img):
             try:
                 imgs, pos, neg, ctrl, status = generate(
                     animal_type=atype,
@@ -402,6 +469,8 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
                     use_controlnet=use_cn,
                     seed=int(s),
                     uploaded_image=upload,
+                    guidance_label=g_label,
+                    use_img2img=img2img,
                 )
                 return imgs, status, pos, neg, ctrl
             except Exception as e:
@@ -411,28 +480,31 @@ def build_interface(data_root: str = "data") -> "gr.Blocks":
         generate_btn.click(
             fn=_generate_wrapper,
             inputs=[animal_type, breed, condition, environment, style,
-                    use_controlnet, seed, uploaded_image],
+                    use_controlnet, seed, uploaded_image,
+                    guidance_mode_radio, use_img2img],
             outputs=[gallery, status_box, positive_out, negative_out, ctrl_img_out],
         )
 
         gr.Examples(
             examples=[
-                ["dog", "beagle",          "bandaged_paw",    "clinic",         "veterinary illustration",    True,  42,   None],
-                ["dog", "great pyrenees",  "cone_collar",     "home",           "veterinary illustration",    True,  100,  None],
-                ["cat", "Persian",         "dental_check",    "exam_room",      "educational diagram",        True,  137,  None],
-                ["dog", "pug",             "weight_check",    "clinic",         "professional pet photography", False, 2024, None],
-                ["dog", "samoyed",         "grooming",        "grooming_salon", "soft watercolor illustration", True,  9999, None],
+                ["dog", "beagle",         "bandaged_paw",    "clinic",         "veterinary illustration",     True,  42,   None, "edges (canny)",     False],
+                ["dog", "great pyrenees", "cone_collar",     "home",           "veterinary illustration",     True,  100,  None, "silhouette (seg)",  False],
+                ["cat", "Persian",        "dental_check",    "exam_room",      "educational diagram",         True,  137,  None, "edges (canny)",     False],
+                ["dog", "pug",            "weight_check",    "clinic",         "professional pet photography", False, 2024, None, "edges (canny)",     False],
+                ["dog", "samoyed",        "grooming",        "grooming_salon", "soft watercolor illustration", True,  9999, None, "depth map",         False],
             ],
             inputs=[animal_type, breed, condition, environment, style,
-                    use_controlnet, seed, uploaded_image],
+                    use_controlnet, seed, uploaded_image,
+                    guidance_mode_radio, use_img2img],
             label="Example scenarios",
             examples_per_page=5,
         )
 
         gr.Markdown(
             "---\n"
-            "_PawPrep uses Stable Diffusion 1.5 with ControlNet Canny conditioning "
+            "_PawPrep uses Stable Diffusion 1.5 with ControlNet (Canny / Seg / Depth) "
             "and the Oxford-IIIT Pet dataset (37 breeds). "
+            "Best-of-6 selection via CLIPScore. "
             "Evaluation: CLIPScore · DINOv2 · LPIPS. "
             "Not a clinical reference._"
         )
