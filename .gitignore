@@ -1,5 +1,9 @@
 /data/
 /outputs/
+CLAUDE.md
+PLAN.md
+TRACKER.md
+.claude/
 *.ckpt
 *.safetensors
 .ipynb_checkpoints/
